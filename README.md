@@ -62,4 +62,4 @@ Create the empty repo on github.com first. Keep all three files at the **root** 
 
 - **Key not found**: add `GEMINI_API_KEY` in app Settings > Secrets, then reboot the app.
 - **Dependency errors after editing requirements**: in the app menu choose *Manage app* > *Reboot app*.
-- **Model not found**: change `MODEL` at the top of `app.py` to another Gemini Flash model name.
+- **Model not found (404)**: the app uses `gemini-3.8-flash` and falls back to `gemini-3.7-flash`. To use another model, add `GEMINI_MODEL = "model-name"` in Secrets (or as an environment variable).
