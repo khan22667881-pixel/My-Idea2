@@ -62,4 +62,5 @@ Create the empty repo on github.com first. Keep all three files at the **root** 
 
 - **Key not found**: add `GEMINI_API_KEY` in app Settings > Secrets, then reboot the app.
 - **Dependency errors after editing requirements**: in the app menu choose *Manage app* > *Reboot app*.
-- **Model not found (404)**: the app uses `gemini-3.8-flash` and falls back to `gemini-3.7-flash`. To use another model, add `GEMINI_MODEL = "model-name"` in Secrets (or as an environment variable).
+- **503 high demand**: temporary on Google's side. The app retries automatically (3 tries per model, with waits) and then switches to backup models. If it still fails, wait a minute and click Explore again.
+- **Model not found (404)**: the app uses `gemini-3.8-flash` and automatically falls back to older Flash models. To use another model, add `GEMINI_MODEL = "model-name"` in Secrets (or as an environment variable).
