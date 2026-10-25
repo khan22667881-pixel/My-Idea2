@@ -1,59 +1,65 @@
 # 🎓 Subject Explorer
 
-A Streamlit app where you pick a field (subject) and Gemini Flash explains:
+Pick a subject or field and get an AI-generated overview of its **scope**, **key points**, **importance**, **relationship with other subjects** and **future outlook**.
 
-- **Scope** – branches, areas of study, career and application areas
-- **Key points** – the core concepts you should know
-- **Importance** – why the subject matters
-- **Inter-relationships** – how it connects to other subjects
-- **Future** – trends, opportunities and challenges
-
-## Run locally
-
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-```
-
-Get a free API key from https://aistudio.google.com/apikey, then either:
-
-```bash
-export GEMINI_API_KEY="your-key"     # Windows PowerShell: $env:GEMINI_API_KEY="your-key"
-streamlit run app.py
-```
-
-or run it and paste the key into the sidebar.
-
-Optional: set `GEMINI_MODEL` (default `gemini-2.5-flash`) or change the model in the sidebar.
-
-## Deploy on Streamlit Community Cloud
-
-1. Push this repo to GitHub (`app.py`, `requirements.txt`, `README.md` at the repo root).
-2. Go to https://share.streamlit.io and click **Create app**.
-3. Choose your repo, branch `main`, and main file `app.py`.
-4. Open **Advanced settings → Secrets** and add:
-   ```toml
-   GEMINI_API_KEY = "your-key"
-   ```
-5. Click **Deploy**.
-
-Never commit your API key to GitHub.
+Built with [Streamlit](https://streamlit.io) and the Gemini Flash model (called through the Gemini REST API, so no Google SDK is needed).
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `app.py` | Streamlit UI and Gemini call |
-| `requirements.txt` | Dependencies (`streamlit`, `google-genai`) |
+| `app.py` | The Streamlit app |
+| `requirements.txt` | Python dependencies (`streamlit`, `requests`) |
 | `README.md` | This file |
+
+## Run locally
+
+1. Get a free API key from [Google AI Studio](https://aistudio.google.com/apikey).
+2. Install and run:
+
+```bash
+pip install -r requirements.txt
+
+# macOS / Linux
+export GEMINI_API_KEY="your-key"
+# Windows PowerShell
+$env:GEMINI_API_KEY="your-key"
+
+streamlit run app.py
+```
+
+Alternatively create `.streamlit/secrets.toml` (never commit it):
+
+```toml
+GEMINI_API_KEY = "your-key"
+```
+
+## Push to GitHub
+
+```bash
+git init
+git add app.py requirements.txt README.md
+git commit -m "Subject Explorer app"
+git branch -M main
+git remote add origin https://github.com/<your-username>/<your-repo>.git
+git push -u origin main
+```
+
+Create the empty repo on github.com first. Keep all three files at the **root** of the repo.
+
+## Deploy on Streamlit Community Cloud
+
+1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
+2. Click **Create app** > **Deploy a public app from GitHub**.
+3. Choose your repo, branch `main`, main file path `app.py`.
+4. Open **Advanced settings** > **Secrets** and add:
+   ```toml
+   GEMINI_API_KEY = "your-key"
+   ```
+5. Click **Deploy**.
 
 ## Troubleshooting
 
-**`ImportError: from google import genai`** – the `google-genai` package was not installed. Check that:
-1. `requirements.txt` is in the **same folder as `app.py`** (repo root) and is named exactly `requirements.txt`.
-2. It is saved as plain **UTF-8** text. On Windows, `echo ... > requirements.txt` in PowerShell saves UTF-16, which pip cannot read. Create it in an editor such as VS Code or Notepad (Save as → UTF-8).
-3. It contains the line `google-genai` (not `google-generativeai` or `google`).
-4. After fixing, open **Manage app → ⋮ → Reboot app** (or Delete and redeploy) so dependencies are reinstalled.
-
-`app.py` also tries `pip install google-genai` at startup if the package is missing, so the app can recover even if `requirements.txt` was ignored. Still fix `requirements.txt` so builds are fast and reproducible. If the app shows an error box with a Python version and import error, send that text for diagnosis.
+- **Key not found**: add `GEMINI_API_KEY` in app Settings > Secrets, then reboot the app.
+- **Dependency errors after editing requirements**: in the app menu choose *Manage app* > *Reboot app*.
+- **Model not found**: change `MODEL` at the top of `app.py` to another Gemini Flash model name.
