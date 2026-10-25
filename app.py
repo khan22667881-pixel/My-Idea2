@@ -10,7 +10,8 @@ import os
 import requests
 import streamlit as st
 
-MODEL = "gemini-2.5-flash"
+DEFAULT_MODEL = "gemini-3.8-flash"
+FALLBACK_MODELS = ["gemini-3.7-flash"]  # tried only if the main model returns 404
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 SUBJECTS = [
@@ -70,6 +71,15 @@ def get_api_key():
     return key or os.environ.get("GEMINI_API_KEY", "")
 
 
+def get_model():
+    """Model name from secrets/env (GEMINI_MODEL), else the default."""
+    try:
+        name = st.secrets.get("GEMINI_MODEL", "")
+    except Exception:
+        name = ""
+    return name or os.environ.get("GEMINI_MODEL", "") or DEFAULT_MODEL
+
+
 def parse_json(text):
     """Parse model output into a dict, tolerating code fences or extra text."""
     text = (text or "").strip()
@@ -86,7 +96,20 @@ def parse_json(text):
         raise
 
 
-def fetch_subject_info(subject, api_key):
+def call_gemini(model, body, api_key):
+    """POST one request; return the Response. Raises RuntimeError on network failure."""
+    try:
+        return requests.post(
+            API_URL.format(model=model),
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json=body,
+            timeout=60,
+        )
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Network error while contacting Gemini: {exc}") from exc
+
+
+def fetch_subject_info(subject, api_key, model=None):
     """Call Gemini and return the parsed dict. Raises RuntimeError on failure."""
     body = {
         "contents": [{"parts": [{"text": PROMPT.format(subject=subject)}]}],
@@ -95,15 +118,12 @@ def fetch_subject_info(subject, api_key):
             "responseMimeType": "application/json",
         },
     }
-    try:
-        resp = requests.post(
-            API_URL.format(model=MODEL),
-            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
-            json=body,
-            timeout=60,
-        )
-    except requests.RequestException as exc:
-        raise RuntimeError(f"Network error while contacting Gemini: {exc}") from exc
+    models = [model or get_model()] + FALLBACK_MODELS
+    resp = None
+    for name in models:
+        resp = call_gemini(name, body, api_key)
+        if resp.status_code != 404:  # 404 = model unavailable, try the next one
+            break
 
     if resp.status_code != 200:
         try:
