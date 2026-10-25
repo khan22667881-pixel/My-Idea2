@@ -6,12 +6,17 @@ API (via `requests`), so no Google SDK has to be installed.
 
 import json
 import os
+import time
 
 import requests
 import streamlit as st
 
 DEFAULT_MODEL = "gemini-3.8-flash"
-FALLBACK_MODELS = ["gemini-3.7-flash"]  # tried only if the main model returns 404
+# Tried in order if the main model is unavailable (404) or stays overloaded (503).
+FALLBACK_MODELS = ["gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash-lite"]
+RETRY_STATUS = {429, 500, 502, 503, 504}  # temporary errors worth retrying
+ATTEMPTS_PER_MODEL = 3
+RETRY_DELAY = 2  # seconds, doubled after each failed attempt
 API_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
 SUBJECTS = [
@@ -110,7 +115,11 @@ def call_gemini(model, body, api_key):
 
 
 def fetch_subject_info(subject, api_key, model=None):
-    """Call Gemini and return the parsed dict. Raises RuntimeError on failure."""
+    """Call Gemini and return the parsed dict. Raises RuntimeError on failure.
+
+    Temporary errors (503 overloaded, 429 rate limit, ...) are retried with a
+    short wait; if a model stays unavailable the next fallback model is tried.
+    """
     body = {
         "contents": [{"parts": [{"text": PROMPT.format(subject=subject)}]}],
         "generationConfig": {
@@ -118,11 +127,21 @@ def fetch_subject_info(subject, api_key, model=None):
             "responseMimeType": "application/json",
         },
     }
-    models = [model or get_model()] + FALLBACK_MODELS
+    main_model = model or get_model()
+    models = [main_model] + [m for m in FALLBACK_MODELS if m != main_model]
     resp = None
     for name in models:
-        resp = call_gemini(name, body, api_key)
-        if resp.status_code != 404:  # 404 = model unavailable, try the next one
+        delay = RETRY_DELAY
+        for attempt in range(ATTEMPTS_PER_MODEL):
+            resp = call_gemini(name, body, api_key)
+            if resp.status_code not in RETRY_STATUS:
+                break
+            if attempt < ATTEMPTS_PER_MODEL - 1:
+                time.sleep(delay)
+                delay *= 2
+        # Success or a real error (e.g. bad key) stops here; 404 and
+        # still-overloaded responses move on to the next model.
+        if resp.status_code != 404 and resp.status_code not in RETRY_STATUS:
             break
 
     if resp.status_code != 200:
