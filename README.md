@@ -55,3 +55,5 @@ Never commit your API key to GitHub.
 2. It is saved as plain **UTF-8** text. On Windows, `echo ... > requirements.txt` in PowerShell saves UTF-16, which pip cannot read. Create it in an editor such as VS Code or Notepad (Save as → UTF-8).
 3. It contains the line `google-genai` (not `google-generativeai` or `google`).
 4. After fixing, open **Manage app → ⋮ → Reboot app** (or Delete and redeploy) so dependencies are reinstalled.
+
+`app.py` also tries `pip install google-genai` at startup if the package is missing, so the app can recover even if `requirements.txt` was ignored. Still fix `requirements.txt` so builds are fast and reproducible. If the app shows an error box with a Python version and import error, send that text for diagnosis.
