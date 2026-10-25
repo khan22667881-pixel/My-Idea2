@@ -6,8 +6,23 @@ import os
 import re
 
 import streamlit as st
-from google import genai
-from google.genai import types
+
+# Import the Gemini SDK defensively so a missing package shows a clear message
+# in the app instead of a redacted ImportError.
+try:
+    from google import genai  # package: google-genai
+    from google.genai import types
+
+    SDK = "new"
+except ImportError:
+    genai = types = None
+    try:
+        import google.generativeai as legacy_genai  # package: google-generativeai
+
+        SDK = "legacy"
+    except ImportError:
+        legacy_genai = None
+        SDK = None
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
@@ -85,15 +100,23 @@ def get_api_key() -> str:
 
 @st.cache_data(show_spinner=False, ttl=3600)
 def fetch_subject_info(subject: str, api_key: str, model: str) -> dict:
-    client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
-        model=model,
-        contents=build_prompt(subject),
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            temperature=0.4,
-        ),
-    )
+    prompt = build_prompt(subject)
+    if SDK == "new":
+        client = genai.Client(api_key=api_key)
+        response = client.models.generate_content(
+            model=model,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.4,
+            ),
+        )
+    else:  # legacy google-generativeai fallback
+        legacy_genai.configure(api_key=api_key)
+        response = legacy_genai.GenerativeModel(model).generate_content(
+            prompt,
+            generation_config={"response_mime_type": "application/json", "temperature": 0.4},
+        )
     return parse_json_response(response.text)
 
 
@@ -140,6 +163,12 @@ def main() -> None:
     st.title("🎓 Subject Explorer")
     st.caption("Pick a field and discover its scope, key points, importance, "
                "connections to other subjects, and future.")
+
+    if SDK is None:
+        st.error("The Gemini SDK is not installed. Make sure `requirements.txt` is in the "
+                 "same folder as `app.py` in your GitHub repo and contains the line "
+                 "`google-genai`, then reboot the app from 'Manage app'.")
+        st.stop()
 
     api_key = get_api_key()
     with st.sidebar:
