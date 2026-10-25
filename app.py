@@ -1,28 +1,56 @@
 """Subject Explorer - pick a field and get its scope, key points, importance,
 relationships with other subjects, and future outlook, powered by Gemini Flash."""
 
+import importlib
 import json
 import os
 import re
+import subprocess
+import sys
 
 import streamlit as st
 
-# Import the Gemini SDK defensively so a missing package shows a clear message
-# in the app instead of a redacted ImportError.
+# --------------------------------------------------------------------------- #
+# Gemini SDK import.
+# Normally `google-genai` comes from requirements.txt. If the host did not
+# install it (wrong file location/encoding, stale build), try installing it at
+# startup so the app still works, and keep the real error for display.
+# --------------------------------------------------------------------------- #
+genai = types = legacy_genai = None
+SDK = None
+IMPORT_ERROR = ""
+
+
+def _import_new_sdk():
+    from google import genai as _genai
+    from google.genai import types as _types
+
+    return _genai, _types
+
+
 try:
-    from google import genai  # package: google-genai
-    from google.genai import types
-
+    genai, types = _import_new_sdk()
     SDK = "new"
-except ImportError:
-    genai = types = None
+except ImportError as first_error:
+    IMPORT_ERROR = repr(first_error)
     try:
-        import google.generativeai as legacy_genai  # package: google-generativeai
+        for name in [m for m in sys.modules if m.startswith("google.genai")]:
+            del sys.modules[name]  # drop any half-imported leftovers
+        subprocess.check_call(
+            [sys.executable, "-m", "pip", "install", "--quiet", "google-genai"]
+        )
+        importlib.invalidate_caches()
+        genai, types = _import_new_sdk()
+        SDK = "new"
+    except Exception as install_error:  # noqa: BLE001
+        IMPORT_ERROR += f" | auto-install failed: {install_error!r}"
+        try:
+            import google.generativeai as legacy_genai  # package: google-generativeai
 
-        SDK = "legacy"
-    except ImportError:
-        legacy_genai = None
-        SDK = None
+            SDK = "legacy"
+        except ImportError:
+            legacy_genai = None
+            SDK = None
 
 DEFAULT_MODEL = "gemini-2.5-flash"
 
@@ -165,9 +193,10 @@ def main() -> None:
                "connections to other subjects, and future.")
 
     if SDK is None:
-        st.error("The Gemini SDK is not installed. Make sure `requirements.txt` is in the "
-                 "same folder as `app.py` in your GitHub repo and contains the line "
-                 "`google-genai`, then reboot the app from 'Manage app'.")
+        st.error("The Gemini SDK (`google-genai`) could not be installed. Make sure "
+                 "`requirements.txt` is in the same folder as `app.py` in your GitHub repo "
+                 "and contains the line `google-genai`, then reboot the app from 'Manage app'.")
+        st.code(f"Python {sys.version}\n{IMPORT_ERROR}")
         st.stop()
 
     api_key = get_api_key()
